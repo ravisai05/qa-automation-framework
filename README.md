@@ -1,6 +1,16 @@
 # QA Automation Framework: UI + API, Selenium 4 · REST Assured · Cucumber 7 · TestNG
 
+[![Tests](https://github.com/ravisai05/qa-automation-framework/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/ravisai05/qa-automation-framework/actions/workflows/tests.yml)
+![Java 17](https://img.shields.io/badge/Java-17-007396)
+![Selenium 4](https://img.shields.io/badge/Selenium-4-43B02A)
+![Cucumber 7](https://img.shields.io/badge/Cucumber-7-23D96C)
+![REST Assured](https://img.shields.io/badge/REST%20Assured-5-1F7A5A)
+
 **Author:** Ravi Sai Saridevi, Senior QA Engineer
+
+**What runs on every push:** 5 smoke scenarios. **Nightly and on demand:** the full UI + API regression, split across
+4 parallel CI jobs. Open the [Actions tab](https://github.com/ravisai05/qa-automation-framework/actions) to see live
+runs, and download the Extent and Cucumber HTML reports from any run's **Artifacts**.
 
 > **30-second pitch.** This is a layered BDD framework that tests a web shop UI ([SauceDemo](https://www.saucedemo.com))
 > and a REST API ([Restful Booker](https://restful-booker.herokuapp.com)) from one Maven project. Scenarios run in
