@@ -70,12 +70,15 @@ jobs:
           cache: maven
 
       # ubuntu-latest ships Google Chrome; Selenium Manager resolves the matching driver.
+      # The browser runs HEADED on a virtual 1920x1080 screen (Xvfb): the practice site ignored clicks from
+      # headless Chrome in CI, while headed runs behave exactly like a developer machine.
       # testFailureIgnore=true lets Maven finish and build every report; the next step is the real gate.
       - name: Run smoke scenarios
         run: >
+          xvfb-run -a --server-args="-screen 0 1920x1080x24"
           mvn -B -ntp clean test
           -DtestFailureIgnore=true
-          -Dbrowser=chrome -DisHeadless=Y -DthreadCount=3
+          -Dbrowser=chrome -DisHeadless=N -DthreadCount=3
           "-DfeatureToRun=+smoke"
 
       - name: Gate - fail on missing/empty results or failed scenarios
@@ -172,9 +175,10 @@ jobs:
 
       - name: Run shard ${{ matrix.shard }}
         run: >
+          xvfb-run -a --server-args="-screen 0 1920x1080x24"
           mvn -B -ntp clean test
           -DtestFailureIgnore=true
-          "-Dbrowser=$BROWSER" -DisHeadless=Y "-DthreadCount=$THREAD_COUNT"
+          "-Dbrowser=$BROWSER" -DisHeadless=N "-DthreadCount=$THREAD_COUNT"
           "-DfeatureToRun=$FEATURE_TO_RUN"
 
       - name: Gate - fail on missing/empty results or failed scenarios
