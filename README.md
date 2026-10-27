@@ -252,12 +252,14 @@ code 2 and a message. If nothing failed, the matrix is empty and no test job sta
 | Checkout validation cases | `testdata/checkout-data.xlsx`, sheet `checkout` | Apache POI; each row holds the inputs **and** the expected error |
 | Random customer / booking | generated | `RandomDataFactory` (JavaFaker); values are visible in the report attachments |
 | Environment URLs and timeouts | `config-<env>.properties` | `-Denv=qa` (default) or `-Denv=staging` |
-| **Secrets** | **environment variables only** | `UI_USER_PASSWORD`, `API_ADMIN_USERNAME`, `API_ADMIN_PASSWORD` |
+| **Secrets** | **environment variables, or a local git-ignored `.env`** | `UI_USER_PASSWORD`, `API_ADMIN_USERNAME`, `API_ADMIN_PASSWORD` |
 
 ```bash
-cp .env.example .env          # .env is git-ignored
-set -a; source .env; set +a   # export the variables into the current shell
+cp .env.example .env          # Windows: copy .env.example .env   (.env is git-ignored)
 ```
+
+`ConfigReader.secret()` checks the real environment variable first, then the local `.env` file in the project root,
+so a run started from the Eclipse/IntelliJ TestNG plugin, Maven or the command line works without extra setup.
 
 In CI the same names come from GitHub Actions secrets or Jenkins credentials. If a secret is missing, the run stops
 with an explicit message that names the variable and the fix. Passwords never appear in feature files, logs,

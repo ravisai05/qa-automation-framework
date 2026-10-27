@@ -2,6 +2,9 @@ package com.qa.framework.config;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -77,17 +80,59 @@ public final class ConfigReader {
     }
 
     /**
-     * Secrets come ONLY from environment variables (a local .env file loaded into the shell,
-     * an Eclipse run configuration, or CI secrets). They are never read from committed files.
+     * Secrets are never read from committed files. Resolution order:
+     * <ol>
+     *     <li>Environment variable (CI secrets, shell, or an IDE run configuration)</li>
+     *     <li>A local, git-ignored {@code .env} file in the project root (KEY=VALUE lines),
+     *         so local runs work from any runner (TestNG plugin, Maven, command line)</li>
+     * </ol>
      */
     public static String secret(String environmentVariable) {
         String value = System.getenv(environmentVariable);
         if (value == null || value.isBlank()) {
+            value = DOT_ENV.get(environmentVariable);
+        }
+        if (value == null || value.isBlank()) {
             throw new IllegalStateException("Secret '" + environmentVariable + "' is not set. "
-                    + "Copy .env.example to .env and load it (set -a; source .env; set +a), "
-                    + "or configure it as a CI secret.");
+                    + "Copy .env.example to .env in the project root (it is git-ignored), "
+                    + "or set it as an environment variable / CI secret.");
         }
         return value;
+    }
+
+    private static final Map<String, String> DOT_ENV = loadDotEnv();
+
+    private static Map<String, String> loadDotEnv() {
+        Path file = Path.of(System.getProperty("user.dir"), ".env");
+        if (!Files.isRegularFile(file)) {
+            return Map.of();
+        }
+        Map<String, String> values = new HashMap<>();
+        try {
+            for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
+                String trimmed = line.trim();
+                if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+                    continue;
+                }
+                if (trimmed.startsWith("export ")) {
+                    trimmed = trimmed.substring("export ".length()).trim();
+                }
+                int eq = trimmed.indexOf('=');
+                if (eq <= 0) {
+                    continue;
+                }
+                String key = trimmed.substring(0, eq).trim();
+                String val = trimmed.substring(eq + 1).trim();
+                if (val.length() >= 2 && (val.startsWith("\"") && val.endsWith("\"")
+                        || val.startsWith("'") && val.endsWith("'"))) {
+                    val = val.substring(1, val.length() - 1);
+                }
+                values.put(key, val);
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not read " + file, e);
+        }
+        return Map.copyOf(values);
     }
 
     private static Map<String, String> loadFileValues() {
