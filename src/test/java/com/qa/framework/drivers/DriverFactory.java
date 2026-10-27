@@ -6,6 +6,7 @@ import org.apache.logging.log4j.Logger;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.chromium.ChromiumDriver;
 import org.openqa.selenium.edge.EdgeDriver;
 import org.openqa.selenium.edge.EdgeOptions;
 import org.openqa.selenium.firefox.FirefoxDriver;
@@ -36,6 +37,10 @@ public final class DriverFactory {
             case FIREFOX -> new FirefoxDriver(firefoxOptions(headless));
             case EDGE -> new EdgeDriver(edgeOptions(headless));
         };
+
+        if (headless && driver instanceof ChromiumDriver chromium) {
+            useRegularUserAgent(chromium);
+        }
 
         // Implicit wait stays 0: all synchronisation is explicit (WaitUtils). Mixing both causes unpredictable waits.
         driver.manage().timeouts().implicitlyWait(Duration.ZERO);
@@ -77,6 +82,21 @@ public final class DriverFactory {
                     "--height=" + ConfigReader.get("window.height"));
         }
         return options;
+    }
+
+    /**
+     * Headless Chromium announces itself as "HeadlessChrome" in its user agent, and some sites treat that as a
+     * bot and silently ignore interactions (seen in CI: "Add to cart" clicks had no effect, while the same test
+     * passed in a headed browser). Swap the token so headless runs behave like a real user's browser.
+     * The version number is kept, so the override never goes stale.
+     */
+    private static void useRegularUserAgent(ChromiumDriver driver) {
+        Object userAgent = driver.executeScript("return navigator.userAgent");
+        if (userAgent instanceof String ua && ua.contains("HeadlessChrome")) {
+            String regular = ua.replace("HeadlessChrome", "Chrome");
+            driver.executeCdpCommand("Network.setUserAgentOverride", Map.of("userAgent", regular));
+            LOG.info("Headless user agent replaced: {}", regular);
+        }
     }
 
     private static String windowSizeArgument() {
