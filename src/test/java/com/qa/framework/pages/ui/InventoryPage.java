@@ -35,16 +35,12 @@ public class InventoryPage extends BasePage {
 
     public void addToCart(String productName) {
         log.info("Adding '{}' to the cart", productName);
-        By button = itemButton(productName);
-        driver.click(button);
-        driver.waitForText(button, "Remove");
+        driver.clickUntilText(itemButton(productName), "Remove");
     }
 
     public void removeFromCart(String productName) {
         log.info("Removing '{}' from the products page", productName);
-        By button = itemButton(productName);
-        driver.click(button);
-        driver.waitForText(button, "Add to cart");
+        driver.clickUntilText(itemButton(productName), "Add to cart");
     }
 
     /** 0 when the badge is not shown (empty cart). */

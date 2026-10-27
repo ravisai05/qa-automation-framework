@@ -101,6 +101,20 @@ public class WebDriverWrapper {
         });
     }
 
+    /**
+     * Clicks a toggle-style button and confirms its label changed to {@code expectedText}. If the first click
+     * was swallowed (e.g. a React handler not yet attached while the page hydrates), clicks ONCE more - only
+     * when the label is still unchanged, so the action can never toggle twice - then waits the full timeout.
+     */
+    public void clickUntilText(By locator, String expectedText) {
+        click(locator);
+        if (!waits.textBecomesWithin(locator, expectedText, Duration.ofSeconds(3))) {
+            LOG.warn("Click on {} did not change its text to '{}' - clicking once more", locator, expectedText);
+            click(locator);
+        }
+        waitForText(locator, expectedText);
+    }
+
     public void waitForText(By locator, String text) {
         execute("wait for text '" + text + "' in " + locator, () -> {
             waits.textToBe(locator, text);

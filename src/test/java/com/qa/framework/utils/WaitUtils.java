@@ -1,6 +1,7 @@
 package com.qa.framework.utils;
 
 import org.openqa.selenium.By;
+import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
@@ -12,10 +13,22 @@ import java.util.List;
 /** Explicit waits only - the framework never uses Thread.sleep or implicit waits. */
 public class WaitUtils {
 
+    private final WebDriver driver;
     private final WebDriverWait wait;
 
     public WaitUtils(WebDriver driver, Duration timeout) {
+        this.driver = driver;
         this.wait = new WebDriverWait(driver, timeout);
+    }
+
+    /** Short, non-throwing check: true if the element's text becomes {@code text} within {@code within}. */
+    public boolean textBecomesWithin(By locator, String text, Duration within) {
+        try {
+            new WebDriverWait(driver, within).until(ExpectedConditions.textToBe(locator, text));
+            return true;
+        } catch (TimeoutException e) {
+            return false;
+        }
     }
 
     public WebElement visible(By locator) {
