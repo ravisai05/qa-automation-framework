@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Two outputs:
+    - console + target/logs/test-run.log : everything, each line prefixed with the scenario id
+    - target/logs/scenarios/<scenarioId>.log : one file per scenario (RoutingAppender keyed on the
+      "scenarioId" ThreadContext value that Hooks sets), so parallel runs do not interleave
+-->
+<Configuration status="WARN">
+    <Properties>
+        <Property name="pattern">%d{HH:mm:ss.SSS} [%t] [%X{scenarioId}] %-5level %c{1} - %msg%n</Property>
+    </Properties>
+
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="${pattern}"/>
+        </Console>
+        <File name="RunFile" fileName="target/logs/test-run.log" append="false">
+            <PatternLayout pattern="${pattern}"/>
+        </File>
+        <Routing name="ScenarioFile">
+            <Routes pattern="$${ctx:scenarioId}">
+                <!-- No scenario in progress (suite start-up / tear-down) -->
+                <Route key="$${ctx:scenarioId}">
+                    <File name="ScenarioFile-none" fileName="target/logs/scenarios/_framework.log" append="true">
+                        <PatternLayout pattern="${pattern}"/>
+                    </File>
+                </Route>
+                <Route>
+                    <File name="ScenarioFile-${ctx:scenarioId}"
+                          fileName="target/logs/scenarios/${ctx:scenarioId}.log" append="true">
+                        <PatternLayout pattern="${pattern}"/>
+                    </File>
+                </Route>
+            </Routes>
+        </Routing>
+    </Appenders>
+
+    <Loggers>
+        <Logger name="com.qa.framework" level="info" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="RunFile"/>
+            <AppenderRef ref="ScenarioFile"/>
+        </Logger>
+        <Root level="warn">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="RunFile"/>
+        </Root>
+    </Loggers>
+</Configuration>

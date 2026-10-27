@@ -1,0 +1,226 @@
+name: Tests
+
+# (a) Pull requests / pushes to main -> fast smoke job.
+# (b) Nightly schedule / manual dispatch -> regression sharded across a matrix of parallel jobs.
+#     scripts/shard_tests.py turns @TC-* tags into the matrix (modes: regression | custom | failed).
+# Every test job fails when cucumber.json is missing/empty/"[]" or a scenario failed (scripts/verify_results.py).
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: "30 1 * * *"   # nightly, 01:30 UTC
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "regression = all @regression | custom = the tags below | failed = re-run failures of a previous run"
+        type: choice
+        options: [ regression, custom, failed ]
+        default: regression
+      tags:
+        description: "custom mode only, e.g. +TC-UI-001,+TC-API-004,@smoke"
+        required: false
+        default: ""
+      source_run_id:
+        description: "failed mode only: id of the workflow run whose failures to re-run"
+        required: false
+        default: ""
+      shards:
+        description: "Number of parallel jobs"
+        default: "4"
+      browser:
+        type: choice
+        options: [ chrome, firefox, edge ]
+        default: chrome
+      thread_count:
+        description: "Parallel scenarios inside each job (-DthreadCount)"
+        default: "3"
+
+permissions:
+  contents: read
+  actions: read   # failed mode downloads artifacts of an earlier run
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Secrets are configured in Settings > Secrets and variables > Actions.
+  # Fallbacks are the PUBLISHED demo credentials of the public practice sites (SauceDemo login page,
+  # Restful Booker docs), so a fresh fork runs green without setup. A real project would have no fallback.
+  UI_USER_PASSWORD: ${{ secrets.UI_USER_PASSWORD || 'secret_sauce' }}
+  API_ADMIN_USERNAME: ${{ secrets.API_ADMIN_USERNAME || 'admin' }}
+  API_ADMIN_PASSWORD: ${{ secrets.API_ADMIN_PASSWORD || 'password123' }}
+
+jobs:
+  smoke:
+    name: Smoke (PR gate)
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      # ubuntu-latest ships Google Chrome; Selenium Manager resolves the matching driver.
+      # testFailureIgnore=true lets Maven finish and build every report; the next step is the real gate.
+      - name: Run smoke scenarios
+        run: >
+          mvn -B -ntp clean test
+          -DtestFailureIgnore=true
+          -Dbrowser=chrome -DisHeadless=Y -DthreadCount=3
+          "-DfeatureToRun=+smoke"
+
+      - name: Gate - fail on missing/empty results or failed scenarios
+        run: python3 scripts/verify_results.py
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-smoke
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            target/cucumber-reports/
+            target/cucumber-html-report/
+            target/extent-report/
+            target/surefire-reports/
+            target/logs/
+            target/rerun.txt
+            target/failure-summary.csv
+
+  plan:
+    name: Plan shards
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.shard.outputs.matrix }}
+      count: ${{ steps.shard.outputs.count }}
+    env:
+      MODE: ${{ inputs.mode || 'regression' }}
+      TAGS: ${{ inputs.tags }}
+      SHARDS: ${{ inputs.shards || '4' }}
+      SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check failed-mode input
+        if: env.MODE == 'failed' && env.SOURCE_RUN_ID == ''
+        run: |
+          echo "::error::mode=failed needs source_run_id (the run whose failures should be re-run)"
+          exit 1
+
+      - name: Download reports of the source run
+        if: env.MODE == 'failed'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: reports-*
+          path: downloaded
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Build shard matrix
+        id: shard
+        run: |
+          if [ "$MODE" = "failed" ]; then
+            # Exits non-zero with a clear message if no rerun.txt / testng-results.xml was downloaded
+            python3 scripts/shard_tests.py --mode failed --results downloaded --shards "$SHARDS"
+          elif [ "$MODE" = "custom" ]; then
+            python3 scripts/shard_tests.py --mode custom --tags "$TAGS" --shards "$SHARDS"
+          else
+            python3 scripts/shard_tests.py --mode regression --shards "$SHARDS"
+          fi
+
+  regression:
+    name: Regression shard ${{ matrix.shard }}
+    needs: plan
+    if: needs.plan.outputs.count != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false   # let every shard finish so the run shows ALL failures
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      BROWSER: ${{ inputs.browser || 'chrome' }}
+      THREAD_COUNT: ${{ inputs.thread_count || '3' }}
+      FEATURE_TO_RUN: ${{ matrix.featureToRun }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Install Firefox
+        if: env.BROWSER == 'firefox'
+        uses: browser-actions/setup-firefox@v1
+
+      - name: Install Edge
+        if: env.BROWSER == 'edge'
+        uses: browser-actions/setup-edge@v1
+
+      - name: Run shard ${{ matrix.shard }}
+        run: >
+          mvn -B -ntp clean test
+          -DtestFailureIgnore=true
+          "-Dbrowser=$BROWSER" -DisHeadless=Y "-DthreadCount=$THREAD_COUNT"
+          "-DfeatureToRun=$FEATURE_TO_RUN"
+
+      - name: Gate - fail on missing/empty results or failed scenarios
+        run: python3 scripts/verify_results.py
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-shard-${{ matrix.shard }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            target/cucumber-reports/
+            target/cucumber-html-report/
+            target/extent-report/
+            target/surefire-reports/
+            target/logs/
+            target/rerun.txt
+            target/failure-summary.csv
+
+  summary:
+    name: Failure summary
+    needs: [ plan, regression ]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.count != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: reports-shard-*
+          path: shards
+
+      # Informational only: the regression jobs above already decide pass/fail.
+      - name: Publish failed scenarios to the run summary
+        run: |
+          {
+            echo "## Failed scenarios"
+            echo ""
+            found=0
+            for csv in shards/*/failure-summary.csv; do
+              [ -f "$csv" ] || continue
+              tail -n +2 "$csv" | while IFS= read -r row; do echo "- $(basename "$(dirname "$csv")"): $row"; done
+              found=1
+            done
+            [ "$found" = 1 ] || echo "No failure-summary.csv found in any shard."
+            echo ""
+            echo "Re-run only the failures: Run workflow > mode=failed, source_run_id=${{ github.run_id }}"
+          } >> "$GITHUB_STEP_SUMMARY"

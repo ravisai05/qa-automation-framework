@@ -1,0 +1,24 @@
+{
+  "standard_booking": {
+    "firstname": "Alex",
+    "lastname": "Morgan",
+    "totalprice": 245,
+    "depositpaid": true,
+    "bookingdates": {
+      "checkin": "2027-03-01",
+      "checkout": "2027-03-05"
+    },
+    "additionalneeds": "Breakfast"
+  },
+  "no_deposit_booking": {
+    "firstname": "Sam",
+    "lastname": "Taylor",
+    "totalprice": 120,
+    "depositpaid": false,
+    "bookingdates": {
+      "checkin": "2027-06-10",
+      "checkout": "2027-06-12"
+    },
+    "additionalneeds": "Late checkout"
+  }
+}

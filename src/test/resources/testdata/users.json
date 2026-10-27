@@ -1,0 +1,14 @@
+{
+  "standard": {
+    "username": "standard_user",
+    "description": "Regular shopper with full access"
+  },
+  "locked": {
+    "username": "locked_out_user",
+    "description": "Account locked by the site - login must be refused"
+  },
+  "problem": {
+    "username": "problem_user",
+    "description": "Can log in but the site injects UI defects for this user"
+  }
+}

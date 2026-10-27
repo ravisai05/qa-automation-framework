@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<!--
+    Single entry point for Maven (Surefire) and for the Eclipse TestNG plugin (right-click > Run As > TestNG Suite).
+    Parallelism is NOT configured here: the runner's @DataProvider(parallel = true) runs scenarios in parallel and
+    ThreadCountListener sizes that pool from -DthreadCount (default 2).
+-->
+<suite name="QA Automation Framework" verbose="1">
+    <listeners>
+        <listener class-name="com.qa.framework.listeners.ThreadCountListener"/>
+        <listener class-name="com.qa.framework.retry.RetryAnnotationTransformer"/>
+        <listener class-name="com.qa.framework.listeners.FailureSummaryListener"/>
+    </listeners>
+
+    <test name="Cucumber scenarios">
+        <classes>
+            <class name="com.qa.framework.runner.CucumberTestRunner"/>
+        </classes>
+    </test>
+</suite>

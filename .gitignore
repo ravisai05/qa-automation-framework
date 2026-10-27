@@ -1,0 +1,25 @@
+# Build output and reports
+target/
+test-output/
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# IntelliJ / VS Code
+.idea/
+*.iml
+.vscode/
+
+# Local secrets - never commit. Copy .env.example to .env instead.
+.env
+
+# CI helper output
+downloaded/
+
+# OS / logs
+.DS_Store
+Thumbs.db
+*.log
+__pycache__/
